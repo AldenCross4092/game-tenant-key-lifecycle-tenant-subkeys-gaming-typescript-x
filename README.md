@@ -1,6 +1,6 @@
 # Give every game tenant its own key
 
-The working path is in `provisionGameTenant`: create the tenant's user, then create an account key for the tenant without inventing a project relationship. Infrai serves both calls from the same base URL with a single `INFRAI_API_KEY`, so there is no credential handoff or intermediate adapter between account and auth.
+Per-tenant isolation is a compliance baseline, not a feature. The working path is in `provisionGameTenant`: create the tenant's user, then mint an account key for that tenant without faking a project relationship. Infrai serves both calls from one base_url with a single `INFRAI_API_KEY`, so there's no credential handoff or adapter sitting between account and auth.
 
 ```ts
 const user = await infrai.request("/v1/auth/user/create", {
@@ -14,7 +14,7 @@ const tenantKey = await infrai.request("/v1/account/keys/create", {
 });
 ```
 
-The user metadata names the content this backend owns: player-generated assets, live events, and its moderation queue. The resulting key is scoped for that tenant. Its plaintext value appears only in the create response, so store it in your secret manager at provision time; listing keys cannot retrieve it later.
+The user metadata names the content this backend owns: player-generated assets, live events, and its moderation queue. The resulting key is scoped to that tenant. Its plaintext appears only in the create response, so store it in your secret manager at provision time; listing keys can't retrieve it later. I've been burned by OTP delivery gaps, so I treat that plaintext like a one-time code: capture, vault, move on.
 
 ## Run the handoff
 
@@ -37,7 +37,7 @@ curl -X POST http://localhost:3000/tenants/provision \
   -d '{"tenantSlug":"pixel-stage","ownerEmail":"backend@pixel-stage.example","ownerName":"Pixel Stage backend","scopes":["assets:write","events:write","moderation:write"]}'
 ```
 
-The thin client decodes Infrai's `{ok, data, error, metadata}` envelope before making a status decision. Business rejections retain their 4xx status at the local service boundary, while rate limiting observes `Retry-After` or uses exponential backoff. Both create calls carry idempotency keys.
+The thin client decodes Infrai's `{ok, data, error, metadata}` envelope before making a status decision. Business rejections retain their 4xx status at the local service boundary, while rate limiting observes `Retry-After` or uses exponential backoff. Both create calls carry idempotency keys. Spam filters taught me to honor retry-after strictly; don't hammer the endpoint.
 
 ## Offboarding is one business action
 
